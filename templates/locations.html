@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Store Locations{% endblock %}
+{% block content %}
+<h2><i class="bi bi-geo-alt"></i> Store Locations</h2>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h5>Add Store</h5></div>
+            <div class="card-body">
+                <form method="POST" action="/location/add">
+                    <div class="mb-2"><input type="text" name="name" class="form-control" placeholder="Store Name (e.g., Joe's Hardware)"></div>
+                    <div class="mb-2"><input type="text" name="address" class="form-control" placeholder="Address"></div>
+                    <div class="mb-2"><input type="text" name="city" class="form-control" placeholder="City"></div>
+                    <div class="mb-2"><input type="text" name="zip" class="form-control" placeholder="ZIP"></div>
+                    <div class="mb-2">
+                        <select name="type" class="form-select">
+                            <option value="local">Local Hardware</option>
+                            <option value="lowes">Lowe's</option>
+                            <option value="home_depot">Home Depot</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Location</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h5>Your Stores</h5></div>
+            <div class="card-body">
+                {% if locations %}
+                    {% for loc in locations %}
+                        <p><strong>{{ loc.name }}</strong><br>{{ loc.address }}, {{ loc.city }} {{ loc.zip }}</p>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No locations added yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

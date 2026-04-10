@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_products }}</h3>
+                <p>Products Tracked</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3>{{ total_bids }}</h3>
+                <p>Bids Created</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body text-center">
+                <h3>{{ tracked_stores }}</h3>
+                <p>Stores Tracked</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3><i class="bi bi-robot"></i></h3>
+                <p>AI Ready</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h5>Quick Actions</h5></div>
+            <div class="card-body">
+                <a href="/price-lookup" class="btn btn-primary w-100 mb-2">🔍 Check Prices</a>
+                <a href="/ai-bid" class="btn btn-success w-100 mb-2">🤖 Create AI Bid</a>
+                <a href="/ai-advisor" class="btn btn-warning w-100 mb-2">💡 Ask AI Advisor</a>
+                <a href="/ceo" class="btn btn-info w-100">🤖 Talk to AI CEO</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h5>Recent Bids</h5></div>
+            <div class="card-body">
+                {% if recent_bids %}
+                    {% for bid in recent_bids %}
+                        <p><strong>{{ bid.id }}</strong> - {{ bid.project_type }}</p>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No bids yet. Create your first AI bid!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

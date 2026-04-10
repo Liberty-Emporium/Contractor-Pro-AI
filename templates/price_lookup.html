@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Price Lookup{% endblock %}
+{% block content %}
+<h2><i class="bi bi-currency-dollar"></i> Compare Prices</h2>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <form method="POST" class="row">
+            <div class="col-md-8">
+                <input type="text" name="search" class="form-control" placeholder="Search products (e.g., lumber, concrete, nails)">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary w-100">Search Prices</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header"><h5>Popular Searches</h5></div>
+    <div class="card-body">
+        <a href="/price-lookup?search=lumber" class="btn btn-sm btn-outline-primary">Lumber</a>
+        <a href="/price-lookup?search=concrete" class="btn btn-sm btn-outline-primary">Concrete</a>
+        <a href="/price-lookup?search=plywood" class="btn btn-sm btn-outline-primary">Plywood</a>
+        <a href="/price-lookup?search=nails" class="btn btn-sm btn-outline-primary">Nails</a>
+        <a href="/price-lookup?search=insulation" class="btn btn-sm btn-outline-primary">Insulation</a>
+        <a href="/price-lookup?search=drywall" class="btn btn-sm btn-outline-primary">Drywall</a>
+    </div>
+</div>
+{% endblock %}

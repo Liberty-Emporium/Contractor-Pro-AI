@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}AI Pricing Advisor{% endblock %}
+{% block content %}
+<h2><i class="bi bi-lightbulb"></i> AI Pricing Advisor</h2>
+
+<p class="text-muted">Ask any question about construction pricing, materials, or projects</p>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <div class="mb-3">
+            <textarea id="question" class="form-control" rows="3" placeholder="e.g., What's a fair price for installing a 10x10 deck?"></textarea>
+        </div>
+        <button onclick="askAdvisor()" class="btn btn-warning">💡 Get Advice</button>
+        <div id="answer" class="mt-4"></div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header"><h5>Sample Questions</h5></div>
+    <div class="card-body">
+        <p onclick="document.getElementById('question').value='What\'s the markup on materials for contractors?'" style="cursor:pointer">• What's the markup on materials?</p>
+        <p onclick="document.getElementById('question').value='Best time to buy lumber?'" style="cursor:pointer">• Best time to buy lumber?</p>
+        <p onclick="document.getElementById('question').value='Labor cost per square foot for hardwood flooring?'" style="cursor:pointer">• Labor cost per sq ft for flooring?</p>
+    </div>
+</div>
+
+<script>
+function askAdvisor() {
+    document.getElementById('answer').innerHTML = '<p>Thinking...</p>';
+    fetch('/api/ask-advisor', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: document.getElementById('question').value})
+    }).then(r => r.json()).then(data => {
+        document.getElementById('answer').innerHTML = '<div class="alert alert-info"><pre>' + data.answer + '</pre></div>';
+    });
+}
+</script>
+{% endblock %}
