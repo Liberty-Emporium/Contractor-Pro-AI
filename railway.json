@@ -4,7 +4,8 @@
   "deploy": {
     "numReplicas": 1,
     "startCommand": "gunicorn app:app --bind 0.0.0.0:$PORT",
-    "numWorkers": 1
+    "numWorkers": 1,
+    "volume": "/data"
   },
   "environmentVariables": [
     {"key": "GROQ_API_KEY", "value": ""},
