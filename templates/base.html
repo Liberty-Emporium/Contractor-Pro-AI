@@ -8,11 +8,13 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         body { background: #f8f9fa; }
-        .sidebar { min-height: 100vh; background: #1a1a2e; }
+        .sidebar { min-height: 100vh; background: #1a1a2e; display: flex; flex-direction: column; }
+        .sidebar-content { flex: 1; }
         .sidebar a { color: #fff; text-decoration: none; padding: 12px 20px; display: block; }
         .sidebar a:hover { background: #16213e; }
         .sidebar a.active { background: #0f3460; border-left: 3px solid #e94560; }
         .price-compare { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .sidebar-footer { border-top: 1px solid #333; padding: 15px; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -23,32 +25,46 @@
                 <div class="p-3 text-white border-bottom border-secondary">
                     <h5><i class="bi bi-hammer"></i> Contractor Pro AI</h5>
                 </div>
-                <nav>
-                    <a href="/dashboard" class="{% if request.path == '/dashboard' %}active{% endif %}">
-                        <i class="bi bi-speedometer2"></i> Dashboard
-                    </a>
-                    <a href="/price-lookup" class="{% if '/price' in request.path %}active{% endif %}">
-                        <i class="bi bi-currency-dollar"></i> Prices
-                    </a>
-                    <a href="/ai-bid" class="{% if '/bid' in request.path %}active{% endif %}">
-                        <i class="bi bi-file-earmark-text"></i> AI Bids
-                    </a>
-                    <a href="/ai-advisor" class="{% if '/advisor' in request.path %}active{% endif %}">
-                        <i class="bi bi-lightbulb"></i> AI Advisor
-                    </a>
-                    <a href="/locations" class="{% if request.path == '/locations' %}active{% endif %}">
-                        <i class="bi bi-geo-alt"></i> Locations
-                    </a>
-                    <a href="/new-products" class="{% if request.path == '/new-products' %}active{% endif %}">
-                        <i class="bi bi-box-seam"></i> New Products
-                    </a>
-                    <a href="/bids" class="{% if request.path == '/bids' %}active{% endif %}">
-                        <i class="bi bi-list-check"></i> My Bids
-                    </a>
-                    <a href="/ceo" class="{% if request.path == '/ceo' %}active{% endif %}">
-                        <i class="bi bi-robot"></i> AI CEO
-                    </a>
-                </nav>
+                <div class="sidebar-content">
+                    <nav>
+                        <a href="/dashboard" class="{% if request.path == '/dashboard' %}active{% endif %}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                        <a href="/price-lookup" class="{% if '/price' in request.path %}active{% endif %}">
+                            <i class="bi bi-currency-dollar"></i> Prices
+                        </a>
+                        <a href="/ai-bid" class="{% if '/bid' in request.path %}active{% endif %}">
+                            <i class="bi bi-file-earmark-text"></i> AI Bids
+                        </a>
+                        <a href="/ai-advisor" class="{% if '/advisor' in request.path %}active{% endif %}">
+                            <i class="bi bi-lightbulb"></i> AI Advisor
+                        </a>
+                        <a href="/locations" class="{% if request.path == '/locations' %}active{% endif %}">
+                            <i class="bi bi-geo-alt"></i> Locations
+                        </a>
+                        <a href="/new-products" class="{% if request.path == '/new-products' %}active{% endif %}">
+                            <i class="bi bi-box-seam"></i> New Products
+                        </a>
+                        <a href="/bids" class="{% if request.path == '/bids' %}active{% endif %}">
+                            <i class="bi bi-list-check"></i> My Bids
+                        </a>
+                        <a href="/ceo" class="{% if request.path == '/ceo' %}active{% endif %}">
+                            <i class="bi bi-robot"></i> AI CEO
+                        </a>
+                        <a href="/settings" class="{% if request.path == '/settings' %}active{% endif %}">
+                            <i class="bi bi-gear"></i> Settings
+                        </a>
+                    </nav>
+                </div>
+                <div class="sidebar-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-person-circle text-white"></i>
+                            <span class="text-white ms-2">admin</span>
+                        </div>
+                        <a href="/logout" class="btn btn-sm btn-outline-light">Logout</a>
+                    </div>
+                </div>
             </div>
             <div class="col-md-10 p-4">
                 {% with messages = get_flashed_messages(with_categories=true) %}
