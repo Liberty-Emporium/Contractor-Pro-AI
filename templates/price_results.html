@@ -3,42 +3,58 @@
 {% block content %}
 <h2><i class="bi bi-currency-dollar"></i> Price Results{% if search %} for "{{search}}"{% endif %}</h2>
 
-<div class="card mt-4">
-    <div class="card-body">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Product</th>
-                    <th>Lowe's</th>
-                    <th>Home Depot</th>
-                    <th>Local Best</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for r in results %}
-                <tr>
-                    <td><strong>{{ r.name }}</strong></td>
-                    <td>
-                        <a href="https://lowes.com/search?searchTerm={{ r.name|urlencode }}" target="_blank" class="btn btn-sm btn-outline-success">
-                            ${{ "%.2f"|format(r.lowes) }} 🛒 Buy
-                        </a>
-                    </td>
-                    <td>
-                        <a href="https://homedepot.com/s/search/{{ r.name|urlencode }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                            ${{ "%.2f"|format(r.home_depot) }} 🛒 Buy
-                        </a>
-                    </td>
-                    <td>
-                        <span class="text-success">${{ "%.2f"|format(r.local) }}</span>
-                    </td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
+<div class="row mt-4">
+    <!-- Lowe's -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5>🟢 Lowe's</h5>
+            </div>
+            <div class="card-body">
+                <iframe 
+                    src="https://lowes.com/search?searchTerm={{ search|urlencode }}" 
+                    width="100%" 
+                    height="500" 
+                    style="border:none;"
+                    loading="lazy">
+                </iframe>
+                <a href="https://lowes.com/search?searchTerm={{ search|urlencode }}" target="_blank" class="btn btn-success w-100 mt-2">
+                    🔗 Open Lowe's in New Tab
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Home Depot -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5>🟠 Home Depot</h5>
+            </div>
+            <div class="card-body">
+                <iframe 
+                    src="https://homedepot.com/s/search/{{ search|urlencode }}" 
+                    width="100%" 
+                    height="500" 
+                    style="border:none;"
+                    loading="lazy">
+                </iframe>
+                <a href="https://homedepot.com/s/search/{{ search|urlencode }}" target="_blank" class="btn btn-warning w-100 mt-2">
+                    🔗 Open Home Depot in New Tab
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="mt-3">
     <a href="/price-lookup" class="btn btn-secondary">← Back to Search</a>
 </div>
+
+<style>
+iframe {
+    border-radius: 8px;
+    background: white;
+}
+</style>
 {% endblock %}
