@@ -6,6 +6,7 @@ All-in-one contractor app with real-time pricing + AI helper
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import os
 import json
+import base64
 import sqlite3
 from datetime import datetime
 
@@ -71,6 +72,28 @@ c.execute('''CREATE TABLE IF NOT EXISTS user_api_keys (
 
 conn.commit()
 
+# ============== ENCRYPTION ==============
+def get_encryption_key():
+    secret = os.environ.get('ENCRYPTION_SECRET', 'contractor-pro-ai-default-key-2024')
+    salt = b'contractor-pro-salt'
+    kdf = PBKDF2(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100000)
+    return base64.urlsafe_b64encode(kdf.derive(secret.encode()))
+
+def encrypt_value(value):
+    if not value:
+        return ''
+    f = Fernet(get_encryption_key())
+    return f.encrypt(value.encode()).decode()
+
+def decrypt_value(encrypted_value):
+    if not encrypted_value:
+        return ''
+    try:
+        f = Fernet(get_encryption_key())
+        return f.decrypt(encrypted_value.encode()).decode()
+    except:
+        return ''
+
 # ============== HELPER FUNCTIONS ==============
 
 def get_user_api_keys(user_id):
@@ -79,12 +102,12 @@ def get_user_api_keys(user_id):
     row = c.fetchone()
     if row:
         return {
-            'qwen_key': row[0] or '',
-            'groq_key': row[1] or '',
-            'anthropic_key': row[2] or '',
-            'openai_key': row[3] or '',
-            'xai_key': row[4] or '',
-            'mistral_key': row[5] or '',
+            'qwen_key': decrypt_value(row[0]),
+            'groq_key': decrypt_value(row[1]),
+            'anthropic_key': decrypt_value(row[2]),
+            'openai_key': decrypt_value(row[3]),
+            'xai_key': decrypt_value(row[4]),
+            'mistral_key': decrypt_value(row[5]),
             'active_provider': row[6] or 'qwen'
         }
     return {'qwen_key': '', 'groq_key': '', 'anthropic_key': '', 'openai_key': '', 'xai_key': '', 'mistral_key': '', 'active_provider': 'qwen'}
@@ -94,8 +117,8 @@ def save_user_api_keys(user_id, keys, active_provider='qwen'):
     c.execute('''INSERT OR REPLACE INTO user_api_keys 
         (user_id, qwen_key, groq_key, anthropic_key, openai_key, xai_key, mistral_key, active_provider, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
-        (user_id, keys.get('qwen_key', ''), keys.get('groq_key', ''), keys.get('anthropic_key', ''),
-         keys.get('openai_key', ''), keys.get('xai_key', ''), keys.get('mistral_key', ''), active_provider))
+        (user_id, encrypt_value(keys.get('qwen_key', '')), encrypt_value(keys.get('groq_key', '')), encrypt_value(keys.get('anthropic_key', '')),
+         encrypt_value(keys.get('openai_key', '')), encrypt_value(keys.get('xai_key', '')), encrypt_value(keys.get('mistral_key', '')), active_provider))
     conn.commit()
 
 def get_active_ai_key(user_id):
