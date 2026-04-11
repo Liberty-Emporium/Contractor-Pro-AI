@@ -32,8 +32,9 @@ function askAdvisor() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({question: document.getElementById('question').value})
     }).then(r => r.json()).then(data => {
-        document.getElementById('answer').innerHTML = '<div class="alert alert-info"><pre>' + data.answer + '</pre></div>';
+        document.getElementById('answer').innerHTML = '<div class="alert alert-info">' + data.answer + '</div>';
     });
 }
 </script>
 {% endblock %}
+<style>.ai-response { white-space: pre-wrap; word-wrap: break-word; }</style>

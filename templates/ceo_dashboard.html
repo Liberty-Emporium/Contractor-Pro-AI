@@ -12,11 +12,20 @@
     </div>
 </div>
 
+<style>
+.ai-response {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+}
+</style>
+
 <script>
 function getAnalysis() {
     document.getElementById('analysis').innerHTML = '<p>Analyzing...</p>';
     fetch('/api/ceo/analyze').then(r => r.json()).then(data => {
-        document.getElementById('analysis').innerHTML = '<div class="alert alert-info"><pre>' + data.analysis + '</pre></div>';
+        document.getElementById('analysis').innerHTML = '<div class="alert alert-info ai-response">' + data.analysis + '</div>';
     });
 }
 </script>

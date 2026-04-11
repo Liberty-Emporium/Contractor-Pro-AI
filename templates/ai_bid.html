@@ -44,7 +44,7 @@ function createBid() {
         })
     }).then(r => r.json()).then(data => {
         if (data.success) {
-            document.getElementById('bid-result').innerHTML = '<div class="card"><div class="card-body"><pre>' + data.bid.content + '</pre></div></div>';
+            document.getElementById('bid-result').innerHTML = '<div class="card"><div class="card-body">' + data.bid.content + '</div></div>';
         } else {
             document.getElementById('bid-result').innerHTML = '<p class="text-danger">Error: ' + data.error + '</p>';
         }
@@ -52,3 +52,4 @@ function createBid() {
 }
 </script>
 {% endblock %}
+<style>.ai-response { white-space: pre-wrap; word-wrap: break-word; }</style>
