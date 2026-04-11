@@ -1,10 +1,9 @@
 """
-AI CEO for Contractor Pro - with debug logging
+AI CEO for Contractor Pro
 """
 
 import os
 import requests
-import json
 
 class AICEO:
     def __init__(self, api_keys=None, active_provider='qwen'):
@@ -22,73 +21,69 @@ Your job is to help with:
 
 Be specific, helpful, and professional."""
         
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ]
-        
-        providers = ['anthropic', 'qwen', 'groq', 'openai', 'xai', 'mistral']
+        # Try providers in order
+        providers = ['anthropic', 'groq', 'qwen', 'openai', 'xai', 'mistral']
         
         for prov in providers:
             key = self.api_keys.get(f'{prov}_key', '')
             if not key or len(key) < 10:
                 continue
             
-            print(f"Trying {prov} with key: {key[:10]}...")
-            
             try:
                 if prov == 'anthropic':
+                    # Anthropic v1 message format
                     response = requests.post(
                         "https://api.anthropic.com/v1/messages",
                         headers={
-                            "x-api-key": key, 
-                            "anthropic-version": "2023-06-01",
-                            "content-type": "application/json"
+                            "x-api-key": key,
+                            "anthropic-version": "2023-06-01"
                         },
                         json={
-                            "model": "claude-3-haiku-20240307", 
-                            "max_tokens": 500, 
-                            "messages": messages
+                            "model": "claude-3-haiku-20240307",
+                            "max_tokens": 500,
+                            "system": system_prompt,
+                            "messages": [{"role": "user", "content": prompt}]
                         },
                         timeout=30
                     )
-                    print(f"Anthropic response: {response.status_code}")
                     if response.status_code == 200:
                         return response.json()['content'][0]['text']
-                        
-                elif prov == 'qwen':
-                    response = requests.post(
-                        "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {key}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": "qwen-plus", 
-                            "messages": messages, 
-                            "max_tokens": 500
-                        },
-                        timeout=30
-                    )
-                    print(f"Qwen response: {response.status_code}")
-                    if response.status_code == 200:
-                        return response.json()['choices'][0]['message']['content']
+                    print(f"Anthropic error: {response.status_code} - {response.text[:200]}")
                         
                 elif prov == 'groq':
                     response = requests.post(
                         "https://api.groq.com/openai/v1/chat/completions",
                         headers={"Authorization": f"Bearer {key}"},
-                        json={"model": "llama-3.3-70b-versatile", "messages": messages, "max_tokens": 500},
+                        json={
+                            "model": "llama-3.1-70b-versatile",
+                            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+                            "max_tokens": 500
+                        },
                         timeout=30
                     )
-                    print(f"Groq response: {response.status_code}")
                     if response.status_code == 200:
                         return response.json()['choices'][0]['message']['content']
+                    print(f"Groq error: {response.status_code}")
                         
+                elif prov == 'qwen':
+                    response = requests.post(
+                        "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {key}"},
+                        json={
+                            "model": "qwen-plus",
+                            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+                            "max_tokens": 500
+                        },
+                        timeout=30
+                    )
+                    if response.status_code == 200:
+                        return response.json()['choices'][0]['message']['content']
+                    print(f"Qwen error: {response.status_code} - {response.text[:200]}")
+                    
             except Exception as e:
                 print(f"Exception for {prov}: {e}")
                 continue
         
-        return "AI unavailable - no valid API keys found"
+        return "AI unavailable - all API calls failed"
 
 ceo = AICEO()
