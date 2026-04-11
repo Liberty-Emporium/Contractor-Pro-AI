@@ -256,7 +256,11 @@ def ai_bid():
 
 @app.route('/api/create-bid', methods=['POST'])
 def create_bid():
-    from ai_ceo import ceo
+    from ai_ceo import AICEO
+    
+    user_id = session.get('user_id', 'guest')
+    api_keys = get_user_api_keys(user_id)
+    ceo = AICEO(api_keys, api_keys.get('active_provider', 'qwen'))
     
     data = request.json
     project_type = data.get('project_type', '')
@@ -305,7 +309,11 @@ def ai_advisor():
 
 @app.route('/api/ask-advisor', methods=['POST'])
 def ask_advisor():
-    from ai_ceo import ceo
+    from ai_ceo import AICEO
+    
+    user_id = session.get('user_id', 'guest')
+    api_keys = get_user_api_keys(user_id)
+    ceo = AICEO(api_keys, api_keys.get('active_provider', 'qwen'))
     
     data = request.json
     question = data.get('question', '')
@@ -361,7 +369,11 @@ def ceo_dashboard():
 
 @app.route('/api/ceo/analyze', methods=['GET'])
 def ceo_analyze():
-    from ai_ceo import ceo
+    from ai_ceo import AICEO
+    
+    user_id = session.get('user_id', 'guest')
+    api_keys = get_user_api_keys(user_id)
+    ceo = AICEO(api_keys, api_keys.get('active_provider', 'qwen'))
     
     products = load_products()
     bids = load_bids()
