@@ -283,26 +283,40 @@ if __name__ == '__main__':
 @app.route('/settings')
 def settings():
     """User settings with token tracking"""
-    # Load user token usage
     tokens_used = session.get('tokens_used', 0)
     is_admin = session.get('username') == 'admin'
+    # Get all API keys
     qwen_key = os.environ.get('QWEN_API_KEY', '')
-    return render_template('settings.html', tokens_used=tokens_used, is_admin=is_admin, qwen_key=qwen_key)
+    groq_key = os.environ.get('GROQ_API_KEY', '')
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    openai_key = os.environ.get('OPENAI_API_KEY', '')
+    xai_key = os.environ.get('XAI_API_KEY', '')
+    mistral_key = os.environ.get('MISTRAL_API_KEY', '')
+    return render_template('settings.html', tokens_used=tokens_used, is_admin=is_admin, 
+                         qwen_key=qwen_key, groq_key=groq_key, 
+                         anthropic_key=anthropic_key, openai_key=openai_key,
+                         xai_key=xai_key, mistral_key=mistral_key)
 
 @app.route('/settings', methods=['POST'])
 def settings_save():
-    """Save API Keys (admin only)"""
-    qwen = request.form.get('qwen_key', '').strip()
+    """Save API Keys"""
+    keys = {
+        'QWEN_API_KEY': request.form.get('qwen_key', '').strip(),
+        'GROQ_API_KEY': request.form.get('groq_key', '').strip(),
+        'ANTHROPIC_API_KEY': request.form.get('anthropic_key', '').strip(),
+        'OPENAI_API_KEY': request.form.get('openai_key', '').strip(),
+        'XAI_API_KEY': request.form.get('xai_key', '').strip(),
+        'MISTRAL_API_KEY': request.form.get('mistral_key', '').strip(),
+    }
     
-    # Check if admin
-    if session.get('username') == 'admin' and qwen:
-        os.environ['QWEN_API_KEY'] = qwen
-        flash('API key saved!', 'success')
+    for key_name, key_value in keys.items():
+        if key_value:
+            os.environ[key_name] = key_value
+    
+    if any(keys.values()):
+        flash('API keys saved!', 'success')
     else:
-        flash('Token usage updated!', 'success')
-    
-    # Track token usage (simple counter for demo)
-    session['tokens_used'] = session.get('tokens_used', 0) + 100
+        flash('No keys entered', 'error')
     
     return redirect(url_for('settings'))
 

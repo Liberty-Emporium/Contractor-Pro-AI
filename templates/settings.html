@@ -3,36 +3,88 @@
 {% block content %}
 <h2>⚙️ My Account</h2>
 
-<!-- User Info -->
+<!-- Account Dropdown -->
 <div class="card mt-4">
-    <div class="card-header"><h5>👤 Account</h5></div>
-    <div class="card-body">
-        <p><strong>Name:</strong> Jay Alexander</p>
-        <p><strong>Plan:</strong> Pro - $99/month</p>
+    <div class="card-header">
+        <div class="dropdown">
+            <button class="btn btn-outline-dark dropdown-toggle w-100 text-start" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-person-circle"></i> 
+                <strong>Jay Alexander</strong> - Pro Plan
+            </button>
+            <ul class="dropdown-menu w-100">
+                <li><span class="dropdown-item-text">
+                    <strong>Plan:</strong> Pro - $99/month
+                </span></li>
+                <li><span class="dropdown-item-text">
+                    <strong>Tokens This Month:</strong> {{ tokens_used|default(0) }}
+                </span></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><span class="dropdown-item-text text-muted">
+                    <small>Manage your account below</small>
+                </span></li>
+            </ul>
+        </div>
     </div>
 </div>
 
-<!-- Token Usage -->
+<!-- AI API Keys - Multi Platform -->
 <div class="card mt-4">
-    <div class="card-header"><h5>🔢 Token Usage This Month</h5></div>
-    <div class="card-body">
-        <h2 style="font-size: 2rem; color: #6366f1;">{{ tokens_used|default(0) }}</h2>
-        <p class="text-muted" style="font-size: 0.8rem;">tokens used</p>
+    <div class="card-header bg-primary text-white">
+        <h5>🤖 AI API Keys</h5>
+        <small>Connect your AI agents from different platforms</small>
     </div>
-</div>
-
-<!-- API Key Section -->
-{% if is_admin %}
-<div class="card mt-4">
-    <div class="card-header bg-danger text-white"><h5>🔐 Admin - API Keys</h5></div>
     <div class="card-body">
         <form method="POST">
-            <div class="mb-3">
-                <label class="form-label">Qwen API Key</label>
-                <input type="password" name="qwen_key" class="form-control" value="{{ qwen_key }}" placeholder="sk-...">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><i class="bi bi-cpu"></i> Qwen API Key</label>
+                    <input type="password" name="qwen_key" class="form-control" value="{{ qwen_key }}" placeholder="sk-...">
+                    <small class="text-muted">Alibaba's Qwen - Cheapest</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><i class="bi bi-cpu"></i> Groq API Key</label>
+                    <input type="password" name="groq_key" class="form-control" value="{{ groq_key }}" placeholder="gsk_...">
+                    <small class="text-muted">Groq - Fast inference</small>
+                </div>
             </div>
-            <button type="submit" class="btn btn-danger">Save API Key</button>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><i class="bi bi-cpu"></i> Anthropic (Claude) API Key</label>
+                    <input type="password" name="anthropic_key" class="form-control" value="{{ anthropic_key|default('') }}" placeholder="sk-ant-...">
+                    <small class="text-muted">Claude - Best reasoning</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><i class="bi bi-cpu"></i> OpenAI API Key</label>
+                    <input type="password" name="openai_key" class="form-control" value="{{ openai_key|default('') }}" placeholder="sk-...">
+                    <small class="text-muted">GPT models</small>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><i class="bi bi-cpu"></i> xAI (Grok) API Key</label>
+                    <input type="password" name="xai_key" class="form-control" value="{{ xai_key|default('') }}" placeholder="xai-...">
+                    <small class="text-muted">Grok AI</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><i class="bi bi-cpu"></i> Mistral API Key</label>
+                    <input type="password" name="mistral_key" class="form-control" value="{{ mistral_key|default('') }}" placeholder="sk-...">
+                    <small class="text-muted">Mistral AI</small>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save All API Keys</button>
         </form>
+    </div>
+</div>
+
+<!-- Admin Section -->
+{% if is_admin %}
+<div class="card mt-4 border-danger">
+    <div class="card-header bg-danger text-white">
+        <h5>🔧 Admin Settings</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">Admin controls for managing the platform.</p>
+        <a href="/admin" class="btn btn-danger">Admin Panel</a>
     </div>
 </div>
 {% endif %}
