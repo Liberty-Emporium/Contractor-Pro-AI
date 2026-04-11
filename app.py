@@ -83,23 +83,27 @@ def prices():
 
 @app.route('/price-lookup', methods=['GET', 'POST'])
 def price_lookup():
+    # Handle both POST and GET
+    search = ''
     if request.method == 'POST':
         search = request.form.get('search', '').lower()
-        
-        # Mock price data (in real app, would scrape or use API)
-        mock_prices = [
-            {'name': '2x4x8 Lumber', 'lowes': 5.98, 'home_depot': 6.49, 'local': 5.50},
-            {'name': 'Sheet of Plywood', 'lowes': 45.00, 'home_depot': 47.00, 'local': 42.00},
-            {'name': 'Quikrete Concrete', 'lowes': 5.48, 'home_depot': 5.98, 'local': 5.25},
-            {'name': 'Galvanized Nails 5lb', 'lowes': 12.98, 'home_depot': 14.48, 'local': 11.99},
-            {'name': 'Portland Cement 94lb', 'lowes': 16.98, 'home_depot': 17.98, 'local': 15.99},
-            {'name': 'PVC Pipe 10ft', 'lowes': 8.98, 'home_depot': 9.48, 'local': 8.49},
-            {'name': 'Insulation R-30', 'lowes': 45.00, 'home_depot': 49.00, 'local': 42.00},
-            {'name': 'Drywall 4x8', 'lowes': 15.48, 'home_depot': 16.98, 'local': 14.99},
-        ]
-        
-        results = [p for p in mock_prices if search in p['name'].lower()] if search else mock_prices
-        
+    else:
+        search = request.args.get('search', '').lower()
+    
+    mock_prices = [
+        {'name': '2x4x8 Lumber', 'lowes': 5.98, 'home_depot': 6.49, 'local': 5.50},
+        {'name': 'Sheet of Plywood', 'lowes': 45.00, 'home_depot': 47.00, 'local': 42.00},
+        {'name': 'Quikrete Concrete', 'lowes': 5.48, 'home_depot': 5.98, 'local': 5.25},
+        {'name': 'Galvanized Nails 5lb', 'lowes': 12.98, 'home_depot': 14.48, 'local': 11.99},
+        {'name': 'Portland Cement 94lb', 'lowes': 16.98, 'home_depot': 17.98, 'local': 15.99},
+        {'name': 'PVC Pipe 10ft', 'lowes': 8.98, 'home_depot': 9.48, 'local': 8.49},
+        {'name': 'Insulation R-30', 'lowes': 45.00, 'home_depot': 49.00, 'local': 42.00},
+        {'name': 'Drywall 4x8', 'lowes': 15.48, 'home_depot': 16.98, 'local': 14.99},
+    ]
+    
+    results = [p for p in mock_prices if search in p['name'].lower()] if search else mock_prices
+    
+    if search:
         return render_template('price_results.html', results=results, search=search)
     
     return render_template('price_lookup.html')
