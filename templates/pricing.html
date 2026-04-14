@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Pricing — Contractor Pro AI{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width:800px;">
+  <div class="text-center mb-5">
+    <h1 class="fw-900" style="font-size:2.5rem; color:#1a1a2e;">Simple, Transparent Pricing</h1>
+    <p class="text-muted fs-5">Everything you need to win more bids and run a smarter contracting business.</p>
+  </div>
+
+  <div class="card border-0 shadow-lg text-center p-5 mb-4" style="border-radius:20px; background:linear-gradient(135deg,#1a1a2e,#0f3460); color:white;">
+    <div style="font-size:1rem; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#a5b4fc; margin-bottom:0.5rem;">PRO PLAN</div>
+    <div style="font-size:4rem; font-weight:900; line-height:1;">$99<span style="font-size:1.5rem; font-weight:400; color:#94a3b8;">/month</span></div>
+    <p style="color:#94a3b8; margin:0.5rem 0 2rem;">Per client &middot; Cancel anytime</p>
+    <a href="/dashboard" class="btn btn-light btn-lg fw-bold px-5" style="border-radius:12px;">Get Started →</a>
+  </div>
+
+  <div class="card border-0 shadow p-4" style="border-radius:16px;">
+    <h5 class="fw-bold mb-3" style="color:#1a1a2e;">Everything included:</h5>
+    <ul class="list-unstyled" style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">
+      <li>✅ AI-powered bid generator</li>
+      <li>✅ Real-time material pricing</li>
+      <li>✅ Project management tools</li>
+      <li>✅ AI cost analysis & advisor</li>
+      <li>✅ Unlimited bids & projects</li>
+      <li>✅ Location-based pricing</li>
+      <li>✅ AI CEO assistant</li>
+      <li>✅ New product sourcing</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}
