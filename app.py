@@ -1,553 +1,560 @@
 """
-Contractor Pro AI
-All-in-one contractor app with real-time pricing + AI helper
+Contractor Pro AI — Multi-Tenant SaaS
+AI-powered bidding & project management for contractors
 """
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-import os
-import json
-import base64
-from cryptography.fernet import Fernet
-import sqlite3
-from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, g
+import os, json, sqlite3, hashlib, secrets, datetime, functools, re
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get('SECRET_KEY', 'contractor-pro-secret-2026')
 
-DATA_DIR = os.environ.get('DATA_DIR', os.path.join('/data'))
-os.makedirs(DATA_DIR, exist_ok=True)
+# ── Data dirs ──────────────────────────────────────────────────────────────────
+_data_pref = os.environ.get('DATA_DIR', '/data')
+try:
+    os.makedirs(_data_pref, exist_ok=True)
+    _t = os.path.join(_data_pref, '.write_test')
+    open(_t,'w').close(); os.remove(_t)
+    DATA_DIR = _data_pref
+except Exception:
+    DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
+    os.makedirs(DATA_DIR, exist_ok=True)
 
-# ============== DATABASE SETUP ==============
-db_path = os.path.join(DATA_DIR, 'contractor_pro.db')
-conn = sqlite3.connect(db_path, check_same_thread=False)
-c = conn.cursor()
+CUSTOMERS_DIR = os.path.join(DATA_DIR, 'customers')
+os.makedirs(CUSTOMERS_DIR, exist_ok=True)
 
-# Create tables
-c.execute('''CREATE TABLE IF NOT EXISTS bids (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT,
-    project_type TEXT,
-    materials TEXT,
-    labor_hours REAL,
-    labor_rate REAL,
-    profit_margin REAL,
-    total_price REAL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)''')
+ADMIN_USER  = os.environ.get('ADMIN_USER', 'admin')
+ADMIN_PASS  = os.environ.get('ADMIN_PASSWORD', 'admin1')
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'jay@libertyemporium.com')
+APP_NAME    = 'Contractor Pro AI'
 
-c.execute('''CREATE TABLE IF NOT EXISTS price_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT,
-    product_name TEXT,
-    price REAL,
-    store TEXT,
-    url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)''')
+# ── DB ─────────────────────────────────────────────────────────────────────────
+DB_FILE = os.path.join(DATA_DIR, 'contractor.db')
 
-c.execute('''CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT,
-    name TEXT,
-    category TEXT,
-    price REAL,
-    store TEXT,
-    url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)''')
+def get_db():
+    if 'db' not in g:
+        g.db = sqlite3.connect(DB_FILE)
+        g.db.row_factory = sqlite3.Row
+    return g.db
 
-# User API keys - STORED IN DATABASE, NOT ENV!
-c.execute('''CREATE TABLE IF NOT EXISTS user_api_keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT UNIQUE,
-    qwen_key TEXT,
-    groq_key TEXT,
-    anthropic_key TEXT,
-    openai_key TEXT,
-    xai_key TEXT,
-    mistral_key TEXT,
-    active_provider TEXT DEFAULT 'qwen',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)''')
+@app.teardown_appcontext
+def close_db(e=None):
+    db = g.pop('db', None)
+    if db: db.close()
 
-conn.commit()
+def init_db():
+    db = sqlite3.connect(DB_FILE)
+    db.execute('''CREATE TABLE IF NOT EXISTS users (
+        username TEXT PRIMARY KEY,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user',
+        email TEXT,
+        store_slug TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    db.execute('''CREATE TABLE IF NOT EXISTS app_config (
+        key TEXT PRIMARY KEY, value TEXT
+    )''')
+    pw = hashlib.sha256(ADMIN_PASS.encode()).hexdigest()
+    db.execute('INSERT OR IGNORE INTO users (username,password,role,email) VALUES (?,?,?,?)',
+               (ADMIN_USER, pw, 'admin', ADMIN_EMAIL))
+    db.commit(); db.close()
 
-# ============== ENCRYPTION ==============
-# Simple key derivation - uses SHA256 hash of secret
-def get_encryption_key():
-    import hashlib
-    secret = os.environ.get('ENCRYPTION_SECRET', 'contractor-pro-ai-default-key-2024')
-    # Use SHA256 to derive a 32-byte key, then encode as Fernet key
-    key_bytes = hashlib.sha256(secret.encode()).digest()
-    return base64.urlsafe_b64encode(key_bytes)
+init_db()
 
-def encrypt_value(value):
-    if not value:
-        return ''
-    f = Fernet(get_encryption_key())
-    return f.encrypt(value.encode()).decode()
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def hash_pw(pw): return hashlib.sha256(pw.encode()).hexdigest()
+def slugify(name): return re.sub(r'[^a-z0-9]+','-',name.lower()).strip('-')[:40]
 
-def decrypt_value(encrypted_value):
-    if not encrypted_value:
-        return ''
+def load_json(path, default=None):
+    if default is None: default = []
+    if os.path.exists(path):
+        try:
+            with open(path) as f: return json.load(f)
+        except: pass
+    return default
+
+def save_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path,'w') as f: json.dump(data, f, indent=2)
+
+# ── Tenant helpers ─────────────────────────────────────────────────────────────
+def active_slug():
+    return session.get('impersonating_slug') or session.get('store_slug') or None
+
+def tenant_dir(slug):
+    d = os.path.join(CUSTOMERS_DIR, slug)
+    os.makedirs(d, exist_ok=True)
+    return d
+
+def data_path(filename, slug=None):
+    if slug: return os.path.join(tenant_dir(slug), filename)
+    return os.path.join(DATA_DIR, filename)
+
+def load_client_config(slug):
+    return load_json(os.path.join(CUSTOMERS_DIR, slug, 'config.json'), {})
+
+def save_client_config(slug, cfg):
+    os.makedirs(os.path.join(CUSTOMERS_DIR, slug), exist_ok=True)
+    save_json(os.path.join(CUSTOMERS_DIR, slug, 'config.json'), cfg)
+
+def list_client_stores():
+    stores = []
+    if not os.path.exists(CUSTOMERS_DIR): return stores
+    for slug in os.listdir(CUSTOMERS_DIR):
+        cfg_path = os.path.join(CUSTOMERS_DIR, slug, 'config.json')
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path) as f: cfg = json.load(f)
+                stores.append(cfg)
+            except: pass
+    return sorted(stores, key=lambda s: s.get('created_at',''), reverse=True)
+
+def load_leads():  return load_json(os.path.join(DATA_DIR,'leads.json'))
+def save_leads(d): save_json(os.path.join(DATA_DIR,'leads.json'), d)
+
+# Tenant data loaders
+def load_bids(slug=None):       return load_json(data_path('bids.json', slug))
+def save_bids(d, slug=None):    save_json(data_path('bids.json', slug), d)
+def load_products(slug=None):   return load_json(data_path('products.json', slug))
+def save_products(d, slug=None):save_json(data_path('products.json', slug), d)
+def load_locations(slug=None):  return load_json(data_path('locations.json', slug))
+def save_locations(d, slug=None):save_json(data_path('locations.json', slug), d)
+
+def get_config(key, default=''):
+    db = get_db()
+    row = db.execute('SELECT value FROM app_config WHERE key=?',(key,)).fetchone()
+    return row['value'] if row else default
+
+def set_config(key, value):
+    get_db().execute('INSERT OR REPLACE INTO app_config (key,value) VALUES (?,?)',(key,str(value)))
+    get_db().commit()
+
+# ── AI ─────────────────────────────────────────────────────────────────────────
+def get_ai_key(slug=None):
+    if slug:
+        cfg = load_client_config(slug)
+        if cfg.get('openrouter_key'): return cfg['openrouter_key']
+    return get_config('openrouter_key', os.environ.get('OPENROUTER_API_KEY',''))
+
+def get_ai_model(slug=None):
+    if slug:
+        cfg = load_client_config(slug)
+        if cfg.get('openrouter_model'): return cfg['openrouter_model']
+    return get_config('openrouter_model','openai/gpt-4o-mini')
+
+def ai_chat(messages, slug=None):
+    import urllib.request as ur
+    key = get_ai_key(slug)
+    if not key: return "AI unavailable — add your OpenRouter API key in Settings ⚙️"
     try:
-        f = Fernet(get_encryption_key())
-        return f.decrypt(encrypted_value.encode()).decode()
-    except:
-        return ''
+        payload = json.dumps({'model':get_ai_model(slug),'messages':messages,'max_tokens':1000}).encode()
+        req = ur.Request('https://openrouter.ai/api/v1/chat/completions', data=payload, headers={
+            'Authorization':f'Bearer {key}','Content-Type':'application/json',
+            'HTTP-Referer':'https://libertyemporium.com','X-Title':APP_NAME})
+        with ur.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())['choices'][0]['message']['content']
+    except Exception as e:
+        return f"AI error: {e}"
 
-# ============== HELPER FUNCTIONS ==============
+# ── Auth decorators ────────────────────────────────────────────────────────────
+def login_required(f):
+    @functools.wraps(f)
+    def decorated(*a, **kw):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*a, **kw)
+    return decorated
 
-def get_user_api_keys(user_id):
-    """Get user's API keys from database"""
-    c.execute('SELECT qwen_key, groq_key, anthropic_key, openai_key, xai_key, mistral_key, active_provider FROM user_api_keys WHERE user_id = ?', (user_id,))
-    row = c.fetchone()
-    if row:
-        return {
-            'qwen_key': decrypt_value(row[0]),
-            'groq_key': decrypt_value(row[1]),
-            'anthropic_key': decrypt_value(row[2]),
-            'openai_key': decrypt_value(row[3]),
-            'xai_key': decrypt_value(row[4]),
-            'mistral_key': decrypt_value(row[5]),
-            'active_provider': row[6] or 'qwen'
-        }
-    return {'qwen_key': '', 'groq_key': '', 'anthropic_key': '', 'openai_key': '', 'xai_key': '', 'mistral_key': '', 'active_provider': 'qwen'}
+def admin_required(f):
+    @functools.wraps(f)
+    def decorated(*a, **kw):
+        if not session.get('logged_in') or session.get('role') != 'admin':
+            flash('Admin access required.','error')
+            return redirect(url_for('login'))
+        return f(*a, **kw)
+    return decorated
 
-def save_user_api_keys(user_id, keys, active_provider='qwen'):
-    """Save user's API keys to database"""
-    c.execute('''INSERT OR REPLACE INTO user_api_keys 
-        (user_id, qwen_key, groq_key, anthropic_key, openai_key, xai_key, mistral_key, active_provider, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
-        (user_id, encrypt_value(keys.get('qwen_key', '')), encrypt_value(keys.get('groq_key', '')), encrypt_value(keys.get('anthropic_key', '')),
-         encrypt_value(keys.get('openai_key', '')), encrypt_value(keys.get('xai_key', '')), encrypt_value(keys.get('mistral_key', '')), active_provider))
-    conn.commit()
-
-def get_active_ai_key(user_id):
-    """Get the active AI provider's key for this user"""
-    api_keys = get_user_api_keys(user_id)
-    provider = api_keys.get('active_provider', 'qwen')
-    
-    key_map = {
-        'qwen': api_keys.get('qwen_key', ''),
-        'groq': api_keys.get('groq_key', ''),
-        'anthropic': api_keys.get('anthropic_key', ''),
-        'openai': api_keys.get('openai_key', ''),
-        'xai': api_keys.get('xai_key', ''),
-        'mistral': api_keys.get('mistral_key', ''),
+# ── Context ────────────────────────────────────────────────────────────────────
+def ctx():
+    slug = active_slug()
+    store_name = APP_NAME
+    if slug:
+        cfg = load_client_config(slug)
+        store_name = cfg.get('store_name', APP_NAME)
+    return {
+        'app_name': APP_NAME,
+        'store_name': store_name,
+        'current_user': session.get('username'),
+        'current_role': session.get('role'),
+        'store_slug': slug,
+        'impersonating': bool(session.get('impersonating_slug')),
     }
-    
-    return key_map.get(provider, ''), provider
 
-# ============== DATA FUNCTIONS ==============
-
-def load_products():
-    path = os.path.join(DATA_DIR, 'products.json')
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    # Return sample data for demo
-    return [
-        {"id": 1, "name": "2x4x8 Lumber", "category": "Lumber", "price": 5.98, "store": "Lowe's", "url": "https://lowes.com"},
-        {"id": 2, "name": "Sheet of Plywood", "category": "Lumber", "price": 45.00, "store": "Home Depot", "url": "https://homedepot.com"},
-        {"id": 3, "name": "Quikrete Concrete 80lb", "category": "Concrete", "price": 5.48, "store": "Lowe's", "url": "https://lowes.com"},
-        {"id": 4, "name": "PVC Pipe 10ft 2in", "category": "Plumbing", "price": 8.98, "store": "Home Depot", "url": "https://homedepot.com"},
-        {"id": 5, "name": "Insulation R-30 15in", "category": "Insulation", "price": 45.00, "store": "Lowe's", "url": "https://lowes.com"},
-    ]
-
-def save_products(products):
-    with open(os.path.join(DATA_DIR, 'products.json'), 'w') as f:
-        json.dump(products, f, indent=2)
-
-def load_bids():
-    path = os.path.join(DATA_DIR, 'bids.json')
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    # Return sample bids for demo
-    return [
-        {
-            "id": "BID-0001",
-            "project_type": "Deck Build",
-            "details": "12x16 wooden deck with stairs",
-            "content": """DECK BUILDING PROPOSAL
-
-Materials:
-- 2x6x16 Pressure Treated Boards: 24 @ $18.99 = $455.76
-- 4x4x12 Post: 8 @ $24.99 = $199.92
-- Deck Screws 5lb: 2 @ $45.99 = $91.98
-- Joist Hangers: 24 @ $2.49 = $59.76
-- Concrete Mix: 10 @ $5.98 = $59.80
-
-Labor:
-- Demolition: 4 hours @ $75/hr = $300
-- Framing: 16 hours @ $75/hr = $1200
-- Decking: 12 hours @ $75/hr = $900
-- Stairs: 8 hours @ $75/hr = $600
-- Finishing: 6 hours @ $75/hr = $450
-
-Subtotal Materials: $867.22
-Subtotal Labor: $3450.00
-Markup (20%): $863.44
-
-TOTAL: $5180.66
-
-Terms: 50% deposit required, balance due upon completion.""",
-            "created_at": "2026-04-10T10:30:00"
-        },
-        {
-            "id": "BID-0002",
-            "project_type": "Kitchen Remodel",
-            "details": "Full kitchen cabinet replacement and countertop",
-            "content": """KITCHEN REMODEL PROPOSAL
-
-Materials:
-- Cabinets (upper/lower set): $4500.00
-- Quartz Countertop: $2800.00
-- Faucet: $350.00
-- Sink: $450.00
-- Backsplash Tile: $600.00
-- Appliances (range, dishwasher): $2500.00
-
-Labor:
-- Demo: 12 hours @ $75/hr = $900
-- Cabinet Install: 16 hours @ $75/hr = $1200
-- Countertop Install: 8 hours @ $75/hr = $600
-- Plumbing: 6 hours @ $85/hr = $510
-- Electrical: 4 hours @ $85/hr = $340
-- Tile: 8 hours @ $75/hr = $600
-
-Subtotal Materials: $11,700.00
-Subtotal Labor: $4,150.00
-Markup (25%): $3,962.50
-
-TOTAL: $19,812.50
-
-Terms: 30% deposit, 30% at midpoint, 40% upon completion.""",
-            "created_at": "2026-04-09T14:20:00"
-        }
-    ]
-
-def save_bids(bids):
-    with open(os.path.join(DATA_DIR, 'bids.json'), 'w') as f:
-        json.dump(bids, f, indent=2)
-
-def load_locations():
-    path = os.path.join(DATA_DIR, 'locations.json')
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    # Return sample locations for demo
-    return [
-        {"id": 1, "name": "Lowe's", "address": "123 Main St", "city": "Austin", "zip": "78701", "type": "lowes", "lat": "30.2672", "lon": "-97.7431"},
-        {"id": 2, "name": "Home Depot", "address": "456 Oak Ave", "city": "Austin", "zip": "78702", "type": "home_depot", "lat": "30.2700", "lon": "-97.7500"},
-    ]
-
-def save_locations(locations):
-    with open(os.path.join(DATA_DIR, 'locations.json'), 'w') as f:
-        json.dump(locations, f, indent=2)
-
-# ============== ROUTES ==============
-
+# ── Public / Landing ───────────────────────────────────────────────────────────
 @app.route('/')
 def index():
-    """Landing page"""
-    return render_template('index.html')
+    if session.get('logged_in'): return redirect(url_for('dashboard'))
+    return render_template('landing.html', **ctx())
 
-@app.route('/dashboard')
-def dashboard():
-    products = load_products()
-    bids = load_bids()
-    locations = load_locations()
-    
-    # Get user's API key status from database
-    user_id = session.get('user_id', 'default')
-    api_keys = get_user_api_keys(user_id)
-    has_api_key = any([api_keys.get('qwen_key'), api_keys.get('groq_key'), 
-                      api_keys.get('anthropic_key'), api_keys.get('openai_key'),
-                      api_keys.get('xai_key'), api_keys.get('mistral_key')])
-    
-    total_products = len(products)
-    total_bids = len(bids)
-    tracked_stores = len(locations)
-    
-    return render_template('dashboard.html',
-                          total_products=total_products,
-                          total_bids=total_bids,
-                          tracked_stores=tracked_stores,
-                          recent_bids=bids[-5:] if bids else [],
-                          has_api_key=has_api_key,
-                          active_provider=api_keys.get('active_provider', 'qwen'))
+@app.route('/healthz')
+def healthz(): return 'ok'
 
-# ============== PRICE LOOKUP ==============
-
-@app.route('/prices')
-def prices():
-    products = load_products()
-    return render_template('prices.html', products=products)
-
-@app.route('/price-lookup', methods=['GET', 'POST'])
-def price_lookup():
-    if request.method == 'POST' and request.form.get('city'):
-        city = request.form.get('city', '').strip()
-        zip_code = request.form.get('zip', '').strip()
-        if city:
-            session['city'] = city
-            session['zip'] = zip_code
-            flash(f'Location set to {city}', 'success')
-    
-    search = ''
-    if request.method == 'POST' and request.form.get('search'):
-        search = request.form.get('search', '').lower()
-    else:
-        search = request.args.get('search', '').lower()
-    
-    mock_prices = [
-        {'name': '2x4x8 Lumber', 'lowes': 5.98, 'home_depot': 6.49, 'local': 5.50},
-        {'name': 'Sheet of Plywood', 'lowes': 45.00, 'home_depot': 47.00, 'local': 42.00},
-        {'name': 'Quikrete Concrete', 'lowes': 5.48, 'home_depot': 5.98, 'local': 5.25},
-        {'name': 'Galvanized Nails 5lb', 'lowes': 12.98, 'home_depot': 14.48, 'local': 11.99},
-        {'name': 'Portland Cement 94lb', 'lowes': 16.98, 'home_depot': 17.98, 'local': 15.99},
-        {'name': 'PVC Pipe 10ft', 'lowes': 8.98, 'home_depot': 9.48, 'local': 8.49},
-        {'name': 'Insulation R-30', 'lowes': 45.00, 'home_depot': 49.00, 'local': 42.00},
-        {'name': 'Drywall 4x8', 'lowes': 15.48, 'home_depot': 16.98, 'local': 14.99},
-    ]
-    
-    results = [p for p in mock_prices if search in p['name'].lower()] if search else mock_prices
-    
-    if search:
-        return render_template('price_results.html', results=results, search=search)
-    
-    return render_template('price_lookup.html')
-
-# ============== AI BID HELPER ==============
-
-@app.route('/ai-bid')
-def ai_bid():
-    return render_template('ai_bid.html')
-
-@app.route('/api/create-bid', methods=['POST'])
-def create_bid():
-    from ai_ceo import AICEO
-    
-    user_id = session.get('user_id', 'default')
-    api_keys = get_user_api_keys(user_id)
-    ceo = AICEO(api_keys, api_keys.get('active_provider', 'qwen'))
-    
-    data = request.json
-    project_type = data.get('project_type', '')
-    details = data.get('details', '')
-    location = data.get('location', '')
-    
-    prompt = f"""Create a contractor bid for:
-Project: {project_type}
-Details: {details}
-Location: {location}
-
-Include:
-1. Materials list with estimated costs
-2. Labor estimate
-3. Timeline
-4. Total estimate
-5. Terms and conditions
-
-Make it professional and detailed."""
-    
-    bid_content = ceo.think(prompt)
-    
-    bids = load_bids()
-    bid = {
-        'id': f"BID-{len(bids) + 1:04d}",
-        'project_type': project_type,
-        'details': details,
-        'content': bid_content,
-        'created_at': datetime.now().isoformat()
-    }
-    bids.append(bid)
-    save_bids(bids)
-    
-    return jsonify({'success': True, 'bid': bid})
-
-@app.route('/bids')
-def list_bids():
-    bids = load_bids()
-    return render_template('bids.html', bids=bids)
-
-# ============== AI ADVISOR ==============
-
-@app.route('/ai-advisor')
-def ai_advisor():
-    return render_template('ai_advisor.html')
-
-@app.route('/api/ask-advisor', methods=['POST'])
-def ask_advisor():
-    from ai_ceo import AICEO
-    
-    user_id = session.get('user_id', 'default')
-    api_keys = get_user_api_keys(user_id)
-    ceo = AICEO(api_keys, api_keys.get('active_provider', 'qwen'))
-    
-    data = request.json
-    question = data.get('question', '')
-    
-    prompt = f"""You are a construction pricing expert. Answer this contractor question:
-
-{question}
-
-Provide specific, actionable advice with estimated costs if applicable."""
-    
-    answer = ceo.think(prompt)
-    
-    return jsonify({'answer': answer})
-
-# ============== LOCATIONS ==============
-
-@app.route('/locations')
-def locations():
-    locations = load_locations()
-    return render_template('locations.html', locations=locations)
-
-@app.route('/location/add', methods=['POST'])
-def add_location():
-    locations = load_locations()
-    
-    location = {
-        'id': len(locations) + 1,
-        'name': request.form.get('name'),
-        'address': request.form.get('address'),
-        'city': request.form.get('city'),
-        'zip': request.form.get('zip'),
-        'type': request.form.get('type'),
-        'lat': request.form.get('lat'),
-        'lon': request.form.get('lon')
-    }
-    
-    locations.append(location)
-    save_locations(locations)
-    flash('Location added!', 'success')
-    return redirect(url_for('locations'))
-
-# ============== NEW PRODUCTS ==============
-
-@app.route('/new-products')
-def new_products():
-    return render_template('new_products.html')
-
-# ============== AI CEO ==============
-
-@app.route('/ceo')
-def ceo_dashboard():
-    return render_template('ceo_dashboard.html')
-
-@app.route('/api/ceo/analyze', methods=['GET'])
-def ceo_analyze():
-    from ai_ceo import AICEO
-    
-    user_id = session.get('user_id', 'default')
-    api_keys = get_user_api_keys(user_id)
-    ceo = AICEO(api_keys, api_keys.get('active_provider', 'qwen'))
-    
-    products = load_products()
-    bids = load_bids()
-    locations = load_locations()
-    
-    prompt = f"""Analyze this contractor business data:
-- {len(products)} products tracked
-- {len(bids)} bids created
-- {len(locations)} store locations
-
-Give recommendations on:
-1. Best money-making opportunities
-2. Pricing strategies
-3. What features to add next"""
-    
-    analysis = ceo.think(prompt)
-    
-    return jsonify({'analysis': analysis})
-
-# ============== SETTINGS ==============
-
-@app.route('/settings')
-def settings():
-    tokens_used = session.get('tokens_used', 0)
-    is_admin = session.get('username') == 'admin'
-    user_id = session.get('user_id', 'default')
-    
-    # Get user's API keys from database
-    api_keys = get_user_api_keys(user_id)
-    
-    return render_template('settings.html', 
-                         tokens_used=tokens_used, 
-                         is_admin=is_admin, 
-                         qwen_key=api_keys.get('qwen_key', ''), 
-                         groq_key=api_keys.get('groq_key', ''), 
-                         anthropic_key=api_keys.get('anthropic_key', ''), 
-                         openai_key=api_keys.get('openai_key', ''),
-                         xai_key=api_keys.get('xai_key', ''), 
-                         mistral_key=api_keys.get('mistral_key', ''),
-                         active_provider=api_keys.get('active_provider', 'qwen'))
-
-@app.route('/settings', methods=['POST'])
-def settings_save():
-    user_id = session.get('user_id', 'default')
-    active_provider = request.form.get('active_provider', 'qwen')
-    
-    keys = {
-        'qwen_key': request.form.get('qwen_key', '').strip(),
-        'groq_key': request.form.get('groq_key', '').strip(),
-        'anthropic_key': request.form.get('anthropic_key', '').strip(),
-        'openai_key': request.form.get('openai_key', '').strip(),
-        'xai_key': request.form.get('xai_key', '').strip(),
-        'mistral_key': request.form.get('mistral_key', '').strip(),
-    }
-    
-    save_user_api_keys(user_id, keys, active_provider)
-    flash(f'API keys saved! Active provider: {active_provider}', 'success')
-    
-    return redirect(url_for('settings'))
-
-# ============== PASSWORD & LOGOUT ==============
-
-@app.route('/change-password', methods=['GET', 'POST'])
-def change_password():
+# ── Auth ───────────────────────────────────────────────────────────────────────
+@app.route('/login', methods=['GET','POST'])
+def login():
     if request.method == 'POST':
-        old_pwd = request.form.get('old_password', '')
-        new_pwd = request.form.get('new_password', '')
-        
-        if new_pwd and len(new_pwd) >= 4:
-            flash('Password changed successfully!', 'success')
+        username = request.form.get('username','').strip()
+        password = request.form.get('password','').strip()
+        db = get_db()
+        user = db.execute('SELECT * FROM users WHERE username=?',(username,)).fetchone()
+        if user and user['password'] == hash_pw(password):
+            session.clear()
+            session['logged_in'] = True
+            session['username']  = username
+            session['role']      = user['role']
+            if user['store_slug']: session['store_slug'] = user['store_slug']
             return redirect(url_for('dashboard'))
-        else:
-            flash('Password must be at least 4 characters', 'error')
-    
-    return render_template('change_password.html')
+        # Also check per-tenant users
+        for store in list_client_stores():
+            users_path = os.path.join(CUSTOMERS_DIR, store['slug'], 'users.json')
+            users = load_json(users_path, {})
+            u = users.get(username)
+            if u and u.get('password') == hash_pw(password):
+                session.clear()
+                session['logged_in']  = True
+                session['username']   = username
+                session['role']       = u.get('role','client')
+                session['store_slug'] = store['slug']
+                return redirect(url_for('dashboard'))
+        flash('Invalid credentials.','error')
+    return render_template('login.html', **ctx())
 
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Logged out successfully!', 'success')
-    return redirect('/')
+    return redirect(url_for('index'))
 
-# ============== STATIC ==============
+# ── Trial signup ───────────────────────────────────────────────────────────────
+@app.route('/wizard')
+def wizard():
+    return render_template('wizard.html', **ctx())
 
+@app.route('/start-trial', methods=['POST'])
+def start_trial():
+    store_name    = request.form.get('store_name','').strip()
+    contact_email = request.form.get('contact_email','').strip()
+    contact_name  = request.form.get('contact_name','').strip()
+    specialty     = request.form.get('specialty','general').strip()
+    if not store_name or not contact_email:
+        flash('Business name and email are required.','error')
+        return redirect(url_for('wizard'))
+    # Block duplicate email
+    for store in list_client_stores():
+        users_path = os.path.join(CUSTOMERS_DIR, store['slug'], 'users.json')
+        users = load_json(users_path, {})
+        if contact_email in users:
+            flash(f'Account with {contact_email} already exists. Sign in instead.','error')
+            return redirect(url_for('login'))
+    slug = slugify(store_name)
+    base = slug; counter = 1
+    while os.path.exists(os.path.join(CUSTOMERS_DIR, slug)):
+        slug = f'{base}-{counter}'; counter += 1
+    now = datetime.datetime.now().isoformat()
+    trial_end = (datetime.datetime.now() + datetime.timedelta(days=14)).isoformat()
+    cfg = {'store_name':store_name,'slug':slug,'contact_name':contact_name,
+           'contact_email':contact_email,'specialty':specialty,
+           'plan':'trial','status':'active',
+           'trial_start':now,'trial_end':trial_end,'created_at':now}
+    save_client_config(slug, cfg)
+    temp_pw = secrets.token_urlsafe(8)
+    save_json(os.path.join(CUSTOMERS_DIR, slug, 'users.json'),
+              {contact_email: {'password':hash_pw(temp_pw),'role':'client','store_slug':slug,'created_at':now}})
+    leads = load_leads()
+    leads.append({'store_name':store_name,'contact_email':contact_email,'slug':slug,'created_at':now,'type':'trial'})
+    save_leads(leads)
+    session.clear()
+    session.update({'logged_in':True,'username':contact_email,'role':'client','store_slug':slug})
+    flash(f'Welcome! Your login: {contact_email} / {temp_pw} — save this!','success')
+    return redirect(url_for('dashboard'))
+
+# ── Dashboard ──────────────────────────────────────────────────────────────────
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    slug  = active_slug()
+    bids  = load_bids(slug)
+    prods = load_products(slug)
+    locs  = load_locations(slug)
+    total_value = sum(float(b.get('total_price',0)) for b in bids)
+    return render_template('dashboard.html',
+        total_bids=len(bids), total_products=len(prods),
+        tracked_stores=len(locs), total_value=total_value,
+        recent_bids=bids[-5:] if bids else [],
+        has_api_key=bool(get_ai_key(slug)),
+        **ctx())
+
+# ── Bids ───────────────────────────────────────────────────────────────────────
+@app.route('/bids')
+@login_required
+def list_bids():
+    return render_template('bids.html', bids=load_bids(active_slug()), **ctx())
+
+@app.route('/ai-bid')
+@login_required
+def ai_bid():
+    return render_template('ai_bid.html', locations=load_locations(active_slug()), **ctx())
+
+@app.route('/api/create-bid', methods=['POST'])
+@login_required
+def create_bid():
+    slug = active_slug()
+    data = request.get_json() or {}
+    project_type   = data.get('project_type','')
+    location       = data.get('location','')
+    description    = data.get('description','')
+    materials_list = data.get('materials',[])
+    labor_hours    = float(data.get('labor_hours',0))
+    labor_rate     = float(data.get('labor_rate',65))
+    profit_margin  = float(data.get('profit_margin',20))
+
+    system = (f"You are an expert contractor estimator. Create a detailed, professional bid. "
+              f"Be specific with costs. Location: {location}.")
+    prompt = (f"Project: {project_type}\nDescription: {description}\n"
+              f"Materials needed: {', '.join(materials_list)}\n"
+              f"Labor: {labor_hours}hrs @ ${labor_rate}/hr\nProfit margin: {profit_margin}%\n"
+              f"Provide: itemized material costs, labor cost, subtotal, profit, and final price.")
+    ai_response = ai_chat([{'role':'system','content':system},{'role':'user','content':prompt}], slug)
+
+    materials_cost = sum(50 * len(materials_list), 0) if materials_list else 200
+    labor_cost     = labor_hours * labor_rate
+    subtotal       = materials_cost + labor_cost
+    total_price    = subtotal * (1 + profit_margin/100)
+
+    bid = {
+        'id': f"BID-{len(load_bids(slug))+1:04d}",
+        'project_type': project_type, 'location': location,
+        'description': description, 'materials': materials_list,
+        'labor_hours': labor_hours, 'labor_rate': labor_rate,
+        'profit_margin': profit_margin, 'materials_cost': round(materials_cost,2),
+        'labor_cost': round(labor_cost,2), 'total_price': round(total_price,2),
+        'ai_breakdown': ai_response,
+        'created_at': datetime.datetime.now().isoformat()
+    }
+    bids = load_bids(slug)
+    bids.append(bid)
+    save_bids(bids, slug)
+    return jsonify({'success':True,'bid':bid})
+
+# ── Products / Price tracking ──────────────────────────────────────────────────
+@app.route('/prices')
+@login_required
+def prices():
+    return render_template('prices.html', products=load_products(active_slug()), **ctx())
+
+@app.route('/price-lookup', methods=['GET','POST'])
+@login_required
+def price_lookup():
+    slug = active_slug()
+    if request.method == 'POST' and request.form.get('city'):
+        city     = request.form.get('city','')
+        material = request.form.get('material','lumber')
+        prompt   = (f"Current {material} prices in {city}. List 5 specific products with realistic "
+                    f"prices from Home Depot, Lowe's, or local suppliers. Include product name, "
+                    f"unit, price, and store.")
+        result = ai_chat([{'role':'user','content':prompt}], slug)
+        return render_template('price_results.html', result=result,
+                               city=city, material=material, **ctx())
+    return render_template('price_lookup.html', **ctx())
+
+@app.route('/new-products')
+@login_required
+def new_products():
+    slug = active_slug()
+    prompt = ("List 10 trending new construction materials and tools for 2025-2026. "
+              "For each: name, use case, approximate cost, and why contractors should care.")
+    result = ai_chat([{'role':'user','content':prompt}], slug)
+    return render_template('new_products.html', result=result, **ctx())
+
+# ── Locations ──────────────────────────────────────────────────────────────────
+@app.route('/locations')
+@login_required
+def locations():
+    return render_template('locations.html', locations=load_locations(active_slug()), **ctx())
+
+@app.route('/location/add', methods=['POST'])
+@login_required
+def add_location():
+    slug = active_slug()
+    locs = load_locations(slug)
+    locs.append({
+        'id': f"LOC-{len(locs)+1:04d}",
+        'city':    request.form.get('city'),
+        'state':   request.form.get('state'),
+        'zipcode': request.form.get('zipcode'),
+        'notes':   request.form.get('notes',''),
+        'created_at': datetime.datetime.now().isoformat()
+    })
+    save_locations(locs, slug)
+    flash('Location added!','success')
+    return redirect(url_for('locations'))
+
+# ── AI Advisor ─────────────────────────────────────────────────────────────────
+@app.route('/ai-advisor')
+@login_required
+def ai_advisor():
+    return render_template('ai_advisor.html', **ctx())
+
+@app.route('/api/ask-advisor', methods=['POST'])
+@login_required
+def ask_advisor():
+    slug = active_slug()
+    data = request.get_json() or {}
+    question = data.get('question','')
+    if not question: return jsonify({'error':'No question'}), 400
+    bids = load_bids(slug)
+    total = sum(float(b.get('total_price',0)) for b in bids)
+    system = (f"You are an expert business advisor for contractors. "
+              f"This contractor has {len(bids)} bids totaling ${total:.2f}. "
+              f"Give specific, actionable advice.")
+    response = ai_chat([{'role':'system','content':system},{'role':'user','content':question}], slug)
+    return jsonify({'response': response})
+
+# ── AI CEO ─────────────────────────────────────────────────────────────────────
+@app.route('/ceo')
+@login_required
+def ceo_dashboard():
+    return render_template('ceo_dashboard.html', **ctx())
+
+@app.route('/api/ceo/analyze', methods=['GET'])
+@login_required
+def ceo_analyze():
+    slug  = active_slug()
+    bids  = load_bids(slug)
+    prods = load_products(slug)
+    total = sum(float(b.get('total_price',0)) for b in bids)
+    prompt = (f"Analyze this contracting business: {len(bids)} bids, "
+              f"${total:.2f} total bid value, {len(prods)} tracked products. "
+              f"Give 3 specific recommendations to win more bids and increase revenue.")
+    return jsonify({'analysis': ai_chat([{'role':'user','content':prompt}], slug),
+                    'stats': {'bids':len(bids),'total_value':total}})
+
+# ── Settings ───────────────────────────────────────────────────────────────────
+@app.route('/settings', methods=['GET','POST'])
+@login_required
+def settings():
+    slug     = active_slug()
+    is_admin = session.get('role') == 'admin'
+    if request.method == 'POST':
+        key   = request.form.get('openrouter_key','').strip()
+        model = request.form.get('openrouter_model','').strip()
+        if slug and not is_admin:
+            cfg = load_client_config(slug)
+            if key:   cfg['openrouter_key']   = key
+            if model: cfg['openrouter_model'] = model
+            save_client_config(slug, cfg)
+        else:
+            if key:   set_config('openrouter_key', key)
+            if model: set_config('openrouter_model', model)
+        flash('Settings saved!','success')
+        return redirect(url_for('settings'))
+    return render_template('settings.html',
+        key_set=bool(get_ai_key(slug)),
+        current_model=get_ai_model(slug), **ctx())
+
+@app.route('/change-password', methods=['GET','POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        slug  = active_slug()
+        email = session['username']
+        old   = request.form.get('old_password','')
+        new   = request.form.get('new_password','')
+        # Check in tenant users
+        if slug:
+            users_path = os.path.join(CUSTOMERS_DIR, slug, 'users.json')
+            users = load_json(users_path, {})
+            if email in users and users[email]['password'] == hash_pw(old):
+                users[email]['password'] = hash_pw(new)
+                save_json(users_path, users)
+                flash('Password changed!','success')
+                return redirect(url_for('dashboard'))
+        flash('Incorrect password.','error')
+    return render_template('change_password.html', **ctx())
+
+# ── Pricing / About (public) ───────────────────────────────────────────────────
 @app.route('/pricing')
 def pricing_page():
-    return render_template('pricing.html')
+    return render_template('pricing.html', **ctx())
 
 @app.route('/about')
 def about():
-    return render_template('about.html')
+    return render_template('about.html', **ctx()) if os.path.exists(
+        os.path.join(app.template_folder,'about.html')) else redirect(url_for('index'))
+
+# ── Overseer (super admin) ─────────────────────────────────────────────────────
+@app.route('/overseer')
+@admin_required
+def overseer():
+    stores = list_client_stores()
+    return render_template('overseer.html',
+        stores=stores, leads=load_leads(),
+        active_count=sum(1 for s in stores if s.get('status')=='active'),
+        **ctx())
+
+@app.route('/overseer/client/create', methods=['POST'])
+@admin_required
+def overseer_create_client():
+    store_name = request.form.get('store_name','').strip()
+    email      = request.form.get('contact_email','').strip()
+    temp_pw    = request.form.get('temp_password','').strip()
+    specialty  = request.form.get('specialty','general')
+    if not store_name or not email or not temp_pw:
+        flash('All fields required.','error')
+        return redirect(url_for('overseer'))
+    slug = slugify(store_name); base = slug; counter = 1
+    while os.path.exists(os.path.join(CUSTOMERS_DIR, slug)):
+        slug = f'{base}-{counter}'; counter += 1
+    now = datetime.datetime.now().isoformat()
+    save_client_config(slug, {'store_name':store_name,'slug':slug,'contact_email':email,
+        'specialty':specialty,'plan':'starter','status':'active','created_at':now})
+    save_json(os.path.join(CUSTOMERS_DIR, slug, 'users.json'),
+              {email: {'password':hash_pw(temp_pw),'role':'client','store_slug':slug,'created_at':now}})
+    flash(f'Client "{store_name}" created! Login: {email} / {temp_pw}','success')
+    return redirect(url_for('overseer'))
+
+@app.route('/overseer/client/<slug>/impersonate', methods=['POST'])
+@admin_required
+def overseer_impersonate(slug):
+    cfg = load_client_config(slug)
+    if not cfg: flash('Store not found.','error'); return redirect(url_for('overseer'))
+    session['impersonating_slug'] = slug
+    flash(f'Managing {cfg["store_name"]}.','success')
+    return redirect(url_for('dashboard'))
+
+@app.route('/overseer/exit')
+def overseer_exit():
+    session.pop('impersonating_slug', None)
+    return redirect(url_for('overseer'))
+
+@app.route('/overseer/client/<slug>/suspend', methods=['POST'])
+@admin_required
+def overseer_suspend(slug):
+    cfg = load_client_config(slug)
+    if cfg:
+        cfg['status'] = 'suspended' if cfg.get('status')=='active' else 'active'
+        save_client_config(slug, cfg)
+        flash(f'Store {cfg["status"]}.','success')
+    return redirect(url_for('overseer'))
+
+@app.route('/overseer/client/<slug>/delete', methods=['POST'])
+@admin_required
+def overseer_delete(slug):
+    import shutil
+    d = os.path.join(CUSTOMERS_DIR, slug)
+    if os.path.exists(d): shutil.rmtree(d)
+    flash('Store deleted.','success')
+    return redirect(url_for('overseer'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-# DEBUG endpoint - remove in production!
-@app.route('/debug-keys')
-def debug_keys():
-    user_id = session.get('user_id', 'default')
-    api_keys = get_user_api_keys(user_id)
-    return jsonify({
-        'user_id': user_id,
-        'keys_found': {k: bool(v) for k, v in api_keys.items()},
-        'active_provider': api_keys.get('active_provider')
-    })

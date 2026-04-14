@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Start Free Trial — {{ app_name }}{% endblock %}
+{% block content %}
+<style>
+  .wiz-wrap{max-width:500px;margin:3rem auto;padding:0 1rem;}
+  .wiz-card{background:white;border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,0.1);padding:2.5rem;}
+  .wiz-card h1{font-size:1.6rem;font-weight:900;color:#0f172a;margin:0 0 0.3rem;}
+  .wiz-card .sub{color:#64748b;margin:0 0 2rem;font-size:0.9rem;}
+  .field{margin-bottom:1.1rem;}
+  .field label{display:block;font-size:0.8rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.35rem;}
+  .field input,.field select{width:100%;padding:0.7rem 0.9rem;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.95rem;box-sizing:border-box;}
+  .field input:focus,.field select:focus{outline:none;border-color:#0f3460;}
+  .btn-submit{width:100%;background:#0f3460;color:white;border:none;padding:0.9rem;border-radius:12px;font-size:1.05rem;font-weight:700;cursor:pointer;margin-top:0.5rem;}
+  .btn-submit:hover{background:#1e40af;}
+  .trial-badge{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.5rem;font-size:0.85rem;color:#1e40af;font-weight:600;text-align:center;}
+</style>
+<div class="wiz-wrap">
+  <div style="text-align:center;font-size:2.5rem;margin-bottom:1rem;">🏗️</div>
+  <div class="wiz-card">
+    <h1>Start Your Free Trial</h1>
+    <p class="sub">14 days free &middot; No credit card needed &middot; Full access</p>
+    <div class="trial-badge">✅ 14-day free trial &middot; Then $99/month &middot; Cancel anytime</div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div style="background:{% if cat=='error' %}#fee2e2{% else %}#dcfce7{% endif %};color:{% if cat=='error' %}#991b1b{% else %}#166534{% endif %};padding:0.75rem;border-radius:8px;margin-bottom:1rem;font-size:0.88rem;">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+    <form method="POST" action="/start-trial">
+      <div class="field"><label>Business Name</label><input type="text" name="store_name" placeholder="Smith Contracting LLC" required autofocus></div>
+      <div class="field"><label>Your Name</label><input type="text" name="contact_name" placeholder="John Smith"></div>
+      <div class="field"><label>Email Address</label><input type="email" name="contact_email" placeholder="john@smithcontracting.com" required></div>
+      <div class="field">
+        <label>Specialty</label>
+        <select name="specialty">
+          <option value="general">General Contracting</option>
+          <option value="roofing">Roofing</option>
+          <option value="electrical">Electrical</option>
+          <option value="plumbing">Plumbing</option>
+          <option value="hvac">HVAC</option>
+          <option value="painting">Painting</option>
+          <option value="landscaping">Landscaping</option>
+          <option value="concrete">Concrete / Masonry</option>
+          <option value="flooring">Flooring</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-submit">🚀 Start Free Trial →</button>
+    </form>
+    <p style="margin-top:1rem;text-align:center;font-size:0.8rem;color:#94a3b8;">Already have an account? <a href="/login" style="color:#0f3460;font-weight:700;">Sign in →</a></p>
+  </div>
+</div>
+{% endblock %}

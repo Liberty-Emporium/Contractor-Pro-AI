@@ -64,6 +64,16 @@
                         <a href="/settings" class="{% if request.path == '/settings' %}active{% endif %}">
                             <i class="bi bi-gear"></i> Settings
                         </a>
+                        {% if current_role == 'admin' %}
+                        <a href="/overseer" class="{% if '/overseer' in request.path %}active{% endif %}" style="border-top:1px solid #333;margin-top:0.5rem;">
+                            <i class="bi bi-shield-check"></i> Overseer
+                        </a>
+                        {% endif %}
+                        {% if impersonating %}
+                        <a href="/overseer/exit" style="background:#7f1d1d;color:#fca5a5;">
+                            <i class="bi bi-box-arrow-left"></i> Exit Client View
+                        </a>
+                        {% endif %}
                     </nav>
                 </div>
                 <div class="sidebar-footer">

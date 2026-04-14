@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Contractor Pro AI — Win More Bids with AI{% endblock %}
+{% block content %}
+<style>
+  .lp{max-width:1100px;margin:0 auto;padding:0 1rem 4rem;}
+  .hero{text-align:center;padding:4rem 1rem 3rem;background:linear-gradient(135deg,#0f172a,#0f3460);color:white;margin-bottom:3rem;}
+  .hero h1{font-size:2.8rem;font-weight:900;margin:0 0 1rem;line-height:1.1;}
+  .hero h1 span{color:#60a5fa;}
+  .hero p{font-size:1.15rem;color:#94a3b8;max-width:600px;margin:0 auto 2rem;}
+  .hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;}
+  .btn-primary{background:#0f3460;color:white;padding:0.9rem 2.5rem;border-radius:12px;font-size:1.1rem;font-weight:700;text-decoration:none;display:inline-block;border:2px solid #60a5fa;}
+  .btn-primary:hover{background:#1e40af;}
+  .btn-secondary{background:rgba(255,255,255,0.1);color:white;padding:0.9rem 2rem;border-radius:12px;font-size:1.1rem;font-weight:700;text-decoration:none;border:2px solid rgba(255,255,255,0.2);}
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.5rem;margin-bottom:3rem;}
+  .feature{background:white;border-radius:14px;padding:1.75rem;box-shadow:0 2px 12px rgba(0,0,0,0.07);}
+  .feature .icon{font-size:2rem;margin-bottom:0.75rem;}
+  .feature h3{font-size:1.05rem;font-weight:700;color:#0f172a;margin:0 0 0.5rem;}
+  .feature p{font-size:0.88rem;color:#64748b;margin:0;line-height:1.5;}
+  .pricing{background:linear-gradient(135deg,#eff6ff,#dbeafe);border-radius:20px;padding:2.5rem;text-align:center;margin-bottom:3rem;}
+  .pricing h2{font-size:1.8rem;color:#0f172a;margin:0 0 0.5rem;}
+  .pricing .price{font-size:3.5rem;font-weight:900;color:#1d4ed8;}
+  .pricing .price span{font-size:1.2rem;font-weight:400;color:#64748b;}
+  .pricing ul{list-style:none;padding:0;margin:1.5rem auto;max-width:400px;text-align:left;}
+  .pricing li{padding:0.4rem 0;font-size:0.95rem;color:#374151;}
+  .pricing li:before{content:'✅ ';}
+</style>
+
+<div class="hero">
+  <div style="font-size:3rem;margin-bottom:1rem;">🏗️</div>
+  <h1>Win More Bids with <span>AI-Powered</span> Estimating</h1>
+  <p>The only contractor platform with a built-in AI that generates professional bids, tracks material prices, and gives you business advice — all in one place.</p>
+  <div class="hero-btns">
+    <a href="/wizard" class="btn-primary">🚀 Start Free Trial</a>
+    <a href="/login" class="btn-secondary">Sign In</a>
+  </div>
+  <p style="margin-top:1.5rem;font-size:0.85rem;color:#64748b;">14-day free trial &middot; No credit card needed &middot; Setup in 60 seconds</p>
+</div>
+
+<div class="lp">
+  <div class="features">
+    <div class="feature">
+      <div class="icon">🤖</div>
+      <h3>AI Bid Generator</h3>
+      <p>Describe your project and get a detailed, professional bid with itemized materials, labor costs, and profit margin — in seconds.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">💰</div>
+      <h3>Real-Time Material Pricing</h3>
+      <p>AI looks up current lumber, concrete, electrical, and plumbing prices in your area so your bids are always accurate.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📊</div>
+      <h3>Bid Management</h3>
+      <p>Track every bid you've created, win rates, total value, and project history — all in one organized dashboard.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🧠</div>
+      <h3>AI Business Advisor</h3>
+      <p>Ask anything — "How do I price roofing jobs?" or "How do I find more commercial clients?" Get expert answers instantly.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📍</div>
+      <h3>Location-Based Pricing</h3>
+      <p>Save your service areas and get accurate local pricing data. Know what materials cost in every city you work in.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🤖</div>
+      <h3>AI CEO Assistant</h3>
+      <p>Built-in AI CEO that analyzes your business and tells you exactly what to do to grow revenue and win more contracts.</p>
+    </div>
+  </div>
+
+  <div class="pricing">
+    <h2>Simple Pricing</h2>
+    <div class="price">$99<span>/month</span></div>
+    <p style="color:#1d4ed8;font-weight:600;margin:0.5rem 0;">Per contractor &middot; Cancel anytime</p>
+    <ul>
+      <li>AI bid generator — unlimited bids</li>
+      <li>Real-time material price lookup</li>
+      <li>AI business advisor</li>
+      <li>Bid history & analytics</li>
+      <li>Location-based pricing</li>
+      <li>AI CEO assistant (built-in)</li>
+      <li>14-day free trial</li>
+    </ul>
+    <a href="/wizard" class="btn-primary" style="font-size:1.1rem;padding:1rem 3rem;display:inline-block;">Start Free Trial →</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}Overseer Panel — {{ app_name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-0">🏗️ Overseer Panel</h2>
+    <span class="badge bg-primary fs-6">{{ active_count }} Active Clients</span>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="alert alert-{% if cat=='error' %}danger{% else %}success{% endif %}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+
+  <!-- Create Client -->
+  <div class="card mb-4 border-0 shadow-sm">
+    <div class="card-header bg-dark text-white"><strong>➕ Create New Client</strong></div>
+    <div class="card-body">
+      <form method="POST" action="/overseer/client/create" class="row g-2">
+        <div class="col-md-3"><input class="form-control" name="store_name" placeholder="Business Name" required></div>
+        <div class="col-md-3"><input class="form-control" name="contact_email" type="email" placeholder="Email" required></div>
+        <div class="col-md-2"><input class="form-control" name="temp_password" placeholder="Temp Password" required></div>
+        <div class="col-md-2">
+          <select class="form-select" name="specialty">
+            <option value="general">General</option>
+            <option value="roofing">Roofing</option>
+            <option value="electrical">Electrical</option>
+            <option value="plumbing">Plumbing</option>
+            <option value="hvac">HVAC</option>
+          </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Create</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Client List -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-dark text-white"><strong>👷 Active Clients ({{ stores|length }})</strong></div>
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-light"><tr>
+          <th>Business</th><th>Email</th><th>Specialty</th><th>Plan</th><th>Status</th><th>Created</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+          {% for s in stores %}
+          <tr>
+            <td><strong>{{ s.store_name }}</strong></td>
+            <td>{{ s.contact_email }}</td>
+            <td>{{ s.specialty or '—' }}</td>
+            <td><span class="badge bg-info">{{ s.plan or 'trial' }}</span></td>
+            <td><span class="badge bg-{% if s.status=='active' %}success{% else %}danger{% endif %}">{{ s.status }}</span></td>
+            <td>{{ s.created_at[:10] if s.created_at else '—' }}</td>
+            <td>
+              <form method="POST" action="/overseer/client/{{ s.slug }}/impersonate" style="display:inline">
+                <button class="btn btn-sm btn-outline-primary">Manage</button>
+              </form>
+              <form method="POST" action="/overseer/client/{{ s.slug }}/suspend" style="display:inline">
+                <button class="btn btn-sm btn-outline-warning">{% if s.status=='active' %}Suspend{% else %}Activate{% endif %}</button>
+              </form>
+              <form method="POST" action="/overseer/client/{{ s.slug }}/delete" style="display:inline" onsubmit="return confirm('Delete {{ s.store_name }}?')">
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No clients yet. Create one above or share the trial signup link.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Leads -->
+  {% if leads %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-secondary text-white"><strong>📋 Trial Signups ({{ leads|length }})</strong></div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>Business</th><th>Email</th><th>Signed Up</th></tr></thead>
+        <tbody>
+          {% for l in leads %}
+          <tr><td>{{ l.store_name }}</td><td>{{ l.contact_email }}</td><td>{{ l.created_at[:10] }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="mt-3">
+    <strong>Trial Signup Link:</strong>
+    <code>{{ request.host_url }}wizard</code>
+  </div>
+</div>
+{% endblock %}
