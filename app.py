@@ -559,6 +559,7 @@ def settings():
         return redirect(url_for('settings'))
     return render_template('settings.html',
         key_set=bool(get_ai_key(slug)),
+        current_key=get_ai_key(slug) or '',
         current_model=get_ai_model(slug), **ctx())
 
 @app.route('/change-password', methods=['GET','POST'])
