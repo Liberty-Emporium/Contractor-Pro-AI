@@ -233,6 +233,7 @@
 </style>
 
 <script>
+{% raw %}
 function selectModel(id) {
   document.querySelectorAll('.model-card').forEach(c => c.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
@@ -246,5 +247,6 @@ function filterModels() {
     card.classList.toggle('hidden', !text.toLowerCase().includes(q));
   });
 }
+{% endraw %}
 </script>
 {% endblock %}
